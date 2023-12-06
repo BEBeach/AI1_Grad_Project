@@ -4,8 +4,6 @@ A hueristic sudoku solver using the wave function collapse system.
 It will return all generated solutions, execution times, and general statistics through the main function.
 A full solution is not guarenteed as no AI or choice system has been implemented.
 """
-
-
 import time
 
 class SudokuSolver:
@@ -23,14 +21,20 @@ class SudokuSolver:
                     self.update_possible_values(i, j, self.board[i][j])
 
     def update_possible_values(self, row, col, value):
+        # Clear the possible values for the cell that just got a number assigned
+        self.possible_values[row][col].clear()
+
+        # Update the row and column
         for i in range(self.size):
             self.possible_values[row][i].discard(value)
             self.possible_values[i][col].discard(value)
 
+        # Update the 3x3 subgrid
         start_row, start_col = row - row % self.subgrid_size, col - col % self.subgrid_size
         for i in range(start_row, start_row + self.subgrid_size):
             for j in range(start_col, start_col + self.subgrid_size):
                 self.possible_values[i][j].discard(value)
+
 
     def is_solved_and_valid(self):
         # Check each row and column
@@ -60,6 +64,13 @@ class SudokuSolver:
         filled_cells = sum(1 for row in self.board for cell in row if cell != 0)
         total_cells = self.size * self.size
         return (filled_cells / total_cells) * 100
+    
+    def is_solvable(self):
+        for i in range(self.size):
+            for j in range(self.size):
+                if self.board[i][j] == 0 and not self.possible_values[i][j]:
+                    return False
+        return True
 
     #-------- WAVE FUNCTION COLLAPSE FUNCTIONS --------#
     def single_assignment(self):
@@ -67,10 +78,15 @@ class SudokuSolver:
         for i in range(self.size):
             for j in range(self.size):
                 if self.board[i][j] == 0 and len(self.possible_values[i][j]) == 1:
-                    value = self.possible_values[i][j].pop()
+                    value = next(iter(self.possible_values[i][j]))
                     self.board[i][j] = value
                     self.update_possible_values(i, j, value)
-                    updated = True
+                    if not self.is_solvable():
+                        # Revert the change if it makes the puzzle unsolvable
+                        self.board[i][j] = 0
+                        self.load_puzzle()
+                    else:
+                        updated = True
         return updated
 
     def unique_assignment(self):
@@ -80,9 +96,15 @@ class SudokuSolver:
                 if self.board[i][j] == 0:
                     unique_value = self.find_unique_value(i, j)
                     if unique_value:
+                        original_value = self.board[i][j]
                         self.board[i][j] = unique_value
                         self.update_possible_values(i, j, unique_value)
-                        updated = True
+                        if not self.is_solvable():
+                            # Revert the change if it makes the puzzle unsolvable
+                            self.board[i][j] = original_value
+                            self.load_puzzle()
+                        else:
+                            updated = True
         return updated
 
     def find_unique_value(self, row, col):
